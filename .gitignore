@@ -12,6 +12,7 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 #custom
 servicaccky.json
 testaccKey.json
+organise.js
 
 # Runtime data
 pids
