@@ -9,10 +9,16 @@ lerna-debug.log*
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
-#custom
+# Service aacount keys
 prodAccKey.json
 testAccKey.json
+
+# private helper scripts
 organise.js
+
+# Temporary files for database dumps
+after_migration.*
+before_migration.*
 
 # Runtime data
 pids

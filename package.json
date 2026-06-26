@@ -2,7 +2,12 @@
   "dependencies": {
     "commander": "^14.0.0",
     "firebase-admin": "^13.2.0",
+    "firestore-backfire": "^2.6.0",
     "nodemailer": "^7.0.12"
+  },
+  "scripts": {
+    "backup:dev": "backfire export ./before_migration -P cynteract-test --adc --overwrite",
+    "compare:dev": "node compareFirestore.js --dev",
+    "restore:dev": "backfire import ./before_migration -P cynteract-test --adc --mode=overwrite"
   }
-  
 }

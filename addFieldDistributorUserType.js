@@ -3,7 +3,7 @@ const prod = require("./prodAccKey.json");
 const dev = require("./testAccKey.json");
 const assert = require("assert");
 
-admin.initializeApp({ credential: admin.credential.cert(prod) });
+admin.initializeApp({ credential: admin.credential.cert(dev) });
 
 const db = admin.firestore();
 let distributorUsersSnapshot = null;
