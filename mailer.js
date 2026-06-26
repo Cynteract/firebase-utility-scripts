@@ -1,8 +1,8 @@
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
 
-const prod = require("./servicaccky.json");
-const dev = require("./testaccKey.json");
+const prod = require("./prodAccKey.json");
+const dev = require("./testAccKey.json");
 
 
 admin.initializeApp({credential: admin.credential.cert(dev)});
