@@ -2,8 +2,8 @@ const admin = require("firebase-admin");
 // const fs = require("fs");
 // const { URL } = require("url");
 
-const prod = '/servicaccky.json'
-// const dev = '/testaccKey.json'
+const prod = '/prodAccKey.json'
+// const dev = '/testAccKey.json'
 
 admin.initializeApp({
   credential: admin.credential.cert(require("./" + prod)),
@@ -410,7 +410,7 @@ playersWithIngameCurrency(50000).catch(console.error);
 
 
 // const admin = require("firebase-admin");
-// const serviceAccount = require("./servicaccky.json");
+// const serviceAccount = require("./prodAccKey.json");
 
 // admin.initializeApp({
 //   credential: admin.credential.cert(serviceAccount),

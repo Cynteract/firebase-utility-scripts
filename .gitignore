@@ -10,8 +10,8 @@ lerna-debug.log*
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 #custom
-servicaccky.json
-testaccKey.json
+prodAccKey.json
+testAccKey.json
 organise.js
 
 # Runtime data
