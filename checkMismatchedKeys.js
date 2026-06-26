@@ -1,19 +1,16 @@
 const admin = require("firebase-admin");
-const serviceAccount = require("./servicaccky.json");
-const testaccKey = require("./testaccKey.json");
+const prod = require("./prodAccKey.json");
+const dev = require("./testAccKey.json");
+const assert = require("assert");
 
-admin.initializeApp({
-  credential: admin.credential.cert(testaccKey),
-});
+admin.initializeApp({credential: admin.credential.cert(prod)});
 
 const db = admin.firestore();
+let distributorUsersSnapshot = null;
+let productKeysSnapshot = null;
 
-async function main() {
-  const distributorUsersSnapshot = await db.collectionGroup("Users").select("userType", "UserType", "Used", "keyUsed", "UsedBy", "userId").get();
-  const productKeysSnapshot = await db.collection("ProductKeys").select("Key", "UserType").get();
-
+async function getMismatchedKeys() {
   const mismatchedKeys = [];
-
   for (const productKeyDoc of productKeysSnapshot.docs) {
     const pKey = productKeyDoc.get("Key");
     const pUserType = productKeyDoc.get("UserType");
@@ -30,7 +27,7 @@ async function main() {
       const dUsedBy = distributorUserDoc.get("UsedBy") || distributorUserDoc.get("userId")
 
       if (dUserType === undefined) {
-        console.log(`Distributor user doc for product key ${pKey} for distributor ${dName} does not have a userType field.`);
+        console.warn(`Distributor user doc for product key ${pKey} for distributor ${dName} does not have a userType field.`);
         continue;
       }
       if (pUserType !== dUserType) {
@@ -41,6 +38,52 @@ async function main() {
       }
     }
   }
+  return mismatchedKeys;
+}
+
+async function main() {
+  distributorUsersSnapshot = await db.collectionGroup("Users").select("userType", "UserType", "Used", "keyUsed", "UsedBy", "userId").get();
+  productKeysSnapshot = await db.collection("ProductKeys").select("Key", "UserType").get();
+
+  // assert no duplicate keys
+  const pKeysSet = new Set();
+  for (const productKeyDoc of productKeysSnapshot.docs) {
+    const pKey = productKeyDoc.get("Key");
+    assert(!pKeysSet.has(pKey), `Duplicate product key found: ${pKey}`);
+    pKeysSet.add(pKey);
+  }
+  const dKeysSet = new Set();
+  for (const distributorUserDoc of distributorUsersSnapshot.docs) {
+    const dKey = distributorUserDoc.id;
+    assert(!dKeysSet.has(dKey), `Duplicate distributor user doc found for product key: ${dKey}`);
+    dKeysSet.add(dKey);
+  }
+
+  // filter mismatched keys
+  const mismatchedKeys = await getMismatchedKeys();
+
+  // assert that all other keys are matched
+  for (const pKeyDoc of productKeysSnapshot.docs) {
+    const pKey = pKeyDoc.get("Key");
+    if (mismatchedKeys.some(mismatch => mismatch.pKey === pKey)) {
+      continue;
+    }
+    const pUserType = pKeyDoc.get("UserType");
+    const dDoc = distributorUsersSnapshot.docs.find(doc => doc.id === pKey);
+    const dUserType = dDoc?.get("userType") || dDoc?.get("UserType");
+    assert(dDoc === undefined || dUserType === pUserType, `Product key has mismatched distributor type assignment: [Key: ${pKey}, ProductKey UserType: ${pUserType}, Distributor UserType: ${dUserType}]`);
+  }
+  for (const dKeyDoc of distributorUsersSnapshot.docs) {
+    const dKey = dKeyDoc.id;
+    if (mismatchedKeys.some(mismatch => mismatch.pKey === dKey)) {
+      continue;
+    }
+    const dUserType = dKeyDoc.get("userType") || dKeyDoc.get("UserType");
+    const pDoc = productKeysSnapshot.docs.find(doc => doc.get("Key") === dKey);
+    const pUserType = pDoc?.get("UserType");
+    assert(pDoc === undefined || dUserType === pUserType, `Distributor user doc has mismatched product key type assignment: [Key: ${dKey}, ProductKey UserType: ${pUserType}, Distributor UserType: ${dUserType}]`);
+  }
+
   console.log("Mismatched keys: ", mismatchedKeys.length);
   for (const mismatch of mismatchedKeys) {
     if (mismatch.dUsed) {
