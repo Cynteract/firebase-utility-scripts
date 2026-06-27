@@ -7,10 +7,10 @@
   },
   "scripts": {
     "backup:dev": "backfire export ./before_migration -P cynteract-test --adc --overwrite",
-    "compare:dev": "node compareFirestore.js --dev",
+    "compare:dev": "node compareFirestore.js --dev --overwrite",
     "restore:dev": "backfire import ./before_migration -P cynteract-test --adc --mode=overwrite",
     "backup:prod": "backfire export ./before_migration -P cynteract-a52e4 --adc --overwrite",
-    "compare:prod": "node compareFirestore.js --prod",
+    "compare:prod": "node compareFirestore.js --prod --overwrite",
     "restore:prod": "backfire import ./before_migration -P cynteract-a52e4 --adc --mode=overwrite"
   }
 }
