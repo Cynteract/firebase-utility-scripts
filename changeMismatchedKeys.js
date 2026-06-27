@@ -3,8 +3,8 @@ const prod = require("./prodAccKey.json");
 const dev = require("./testAccKey.json");
 const assert = require("assert");
 
-key = dev;
-// key = prod;
+// key = dev;
+key = prod;
 const dryRun = true;
 // const dryRun = false;
 
@@ -28,28 +28,16 @@ async function getMismatchedKeys() {
       matchingDKeyDocs.length <= 1,
       `Multiple distributor user docs found for product key: ${pKey}.`,
     );
-    // assert(
-    //   matchingUDocs.length <= 1,
-    //   `Multiple user docs found for product key: ${pKey}.`,
-    // );
-    if (matchingUDocs.length > 1) {
-      console.warn(`Multiple user docs found for product key: ${pKey}.`);
-      for (const uDoc of matchingUDocs) {
-        const uId = uDoc.id;
-        let uEmail;
-        try {
-          const authEntry = await auth.getUser(uId);
-          uEmail = authEntry.email;
-        } catch (error) {}
-        const uTherapistId = uDoc.get("TherapistId");
-        const uLastLogin = uDoc.get("LastLogin");
-        console.warn(
-          `User doc ID: ${uDoc.id}, Email: ${uEmail}, Therapist ID: ${uTherapistId}, Last Login: ${uLastLogin}`,
-        );
-      }
-    }
+    assert(
+      matchingUDocs.length <= 1,
+      `Multiple user docs found for product key: ${pKey}. Run script deleteOrphans.js to delete orphaned user docs before running this script.`,
+    );
     const dKeyDoc = matchingDKeyDocs.at(0);
     const uDoc = matchingUDocs.at(0);
+    if (dKeyDoc === undefined && uDoc === undefined) {
+      // there is only one value, skip matching
+      continue;
+    }
 
     const pUserType = pDoc.get("UserType");
     const uUserType = uDoc?.get("UserType");
@@ -72,6 +60,10 @@ async function getMismatchedKeys() {
     const dName = dDoc?.get("Name");
     const dKeyUsed = dKeyDoc?.get("Used") || dKeyDoc?.get("keyUsed");
     const dUsedBy = dKeyDoc?.get("UsedBy") || dKeyDoc?.get("userId");
+    const uEmail = uDoc?.get("Email");
+    const uLastLogin = uDoc?.get("LastLogin");
+    const uPatientName = uDoc?.get("PatientName");
+    const uTherapistId = uDoc?.get("TherapistId");
 
     if (
       (dDoc !== undefined && pUserType !== dKeyUserType) ||
@@ -90,10 +82,23 @@ async function getMismatchedKeys() {
         dUsedBy,
         uDoc,
         uUserType,
+        uEmail,
+        uLastLogin,
+        uPatientName,
+        uTherapistId,
       });
     }
   }
   return mismatchedKeys;
+}
+
+async function getEmailForUserId(uId) {
+  let authEmail;
+  try {
+    const authEntry = await auth.getUser(uId);
+    authEmail = authEntry.email;
+  } catch (error) {}
+  return authEmail;
 }
 
 async function assertNoDuplicateKeys() {
@@ -125,7 +130,14 @@ async function main() {
     .get();
   userSnapshot = await db
     .collection("User")
-    .select("ProductKey", "UserType")
+    .select(
+      "ProductKey",
+      "UserType",
+      "TherapistId",
+      "Email",
+      "LastLogin",
+      "PatientName",
+    )
     .get();
 
   await assertNoDuplicateKeys();
@@ -140,10 +152,12 @@ async function main() {
       continue;
     }
     const pUserType = pKeyDoc.get("UserType");
-    const dDoc = distributorUsersSnapshot.docs.find((doc) => doc.id === pKey);
-    const dUserType = dDoc?.get("userType") || dDoc?.get("UserType");
+    const dKeyDoc = distributorUsersSnapshot.docs.find(
+      (doc) => doc.id === pKey,
+    );
+    const dUserType = dKeyDoc?.get("userType") || dKeyDoc?.get("UserType");
     assert(
-      dDoc === undefined || dUserType === pUserType,
+      dKeyDoc === undefined || dUserType === pUserType,
       `Product key has mismatched distributor type assignment: [Key: ${pKey}, ProductKey UserType: ${pUserType}, Distributor UserType: ${dUserType}]`,
     );
   }
@@ -165,9 +179,65 @@ async function main() {
 
   console.log("Mismatched keys: ", mismatchedKeys.length);
   for (const mismatch of mismatchedKeys) {
-    if (mismatch.dUsed) {
+    const {
+      dUsed,
+      dUsedBy,
+      dId,
+      dName,
+      pDoc,
+      pKey,
+      pUserType,
+      dKeyUserType,
+      uDoc,
+      uUserType,
+      uEmail,
+      uLastLogin,
+      uPatientName,
+      uTherapistId,
+    } = mismatch;
+    assert(
+      pUserType !== undefined,
+      `Product key ${pKey} does not have a UserType field.`,
+    );
+    assert(
+      dKeyUserType !== undefined || uUserType !== undefined,
+      `Distributor user doc and user doc for product key ${pKey} do not have a userType field.`,
+    );
+    if (dKeyUserType === pUserType) {
+      console.warn(
+        `Case 1: product key ${pKey}: distributor matches product key, but user does not match. Product key user type: ${pUserType}, Distributor user type: ${dKeyUserType}, User user type: ${uUserType}. Distributor name: ${dName}.`,
+      );
+    } else if (uUserType === dKeyUserType) {
       console.log(
-        `Product key ${mismatch.pKey} has mismatched user types. Product key user type: ${mismatch.pUserType}, Distributor user type: ${mismatch.dUserType}. Distributor ID: ${mismatch.dId}, Distributor Name: ${mismatch.dName}, Used: ${mismatch.dUsed}, Used By: ${mismatch.dUsedBy}`,
+        `Case 2: product key ${pKey}: user matches distributor. Updating product key to ${uUserType}`,
+      );
+      if (!dryRun) {
+        await pDoc.ref.update({ UserType: uUserType });
+      }
+    } else if (uUserType === undefined) {
+      console.log(
+        `Case 3: product key ${pKey}: user does not exist yet, distributor does not match product key. Updating product key to ${dKeyUserType}`,
+      );
+      if (!dryRun) {
+        await pDoc.ref.update({ UserType: dKeyUserType });
+      }
+    } else if (
+      dKeyUserType !== undefined &&
+      uUserType !== undefined &&
+      dKeyUserType !== uUserType
+    ) {
+      const authEmail = await getEmailForUserId(uDoc.id);
+      console.warn(
+        `Case 4: product key ${pKey}: user does not match distributor. Resolve manually. Product key id: ${pDoc.id}, Product key user type: ${pUserType}, Distributor user type: ${dKeyUserType}, User user type: ${uUserType}. Distributor name: ${dName}, Auth email: ${authEmail}.`,
+      );
+    } else if (dKeyUserType === undefined) {
+      const authEmail = await getEmailForUserId(uDoc.id);
+      console.warn(
+        `Case 5: product key ${pKey}: no distributor, still mismatch. Resolve manually: Product key id: ${pDoc.id}, Product key user type: ${pUserType}, User user type: ${uUserType}, User email: ${uEmail}, User last login: ${uLastLogin}, User patient name: ${uPatientName}, User therapist ID: ${uTherapistId}, Auth email: ${authEmail}.`,
+      );
+    } else {
+      assert.fail(
+        `Unexpected case for product key ${pKey}: product key user type: ${pUserType}, distributor user type: ${dKeyUserType}, user user type: ${uUserType}.`,
       );
     }
   }
