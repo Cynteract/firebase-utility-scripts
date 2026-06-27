@@ -8,6 +8,9 @@
   "scripts": {
     "backup:dev": "backfire export ./before_migration -P cynteract-test --adc --overwrite",
     "compare:dev": "node compareFirestore.js --dev",
-    "restore:dev": "backfire import ./before_migration -P cynteract-test --adc --mode=overwrite"
+    "restore:dev": "backfire import ./before_migration -P cynteract-test --adc --mode=overwrite",
+    "backup:prod": "backfire export ./before_migration -P cynteract-a52e4 --adc --overwrite",
+    "compare:prod": "node compareFirestore.js --prod",
+    "restore:prod": "backfire import ./before_migration -P cynteract-a52e4 --adc --mode=overwrite"
   }
 }

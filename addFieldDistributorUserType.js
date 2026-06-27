@@ -3,8 +3,12 @@ const prod = require("./prodAccKey.json");
 const dev = require("./testAccKey.json");
 const assert = require("assert");
 
-admin.initializeApp({ credential: admin.credential.cert(dev) });
-const dryRun = false; // set to false to actually update the database
+// key = dev
+key = prod;
+// const dryRun = true;
+const dryRun = false;
+
+admin.initializeApp({ credential: admin.credential.cert(key) });
 
 const db = admin.firestore();
 let distributorUsersSnapshot = null;
@@ -111,12 +115,12 @@ async function main() {
     const { dKeyDoc, dKey, dName, pDoc, pId, pUserType, uDoc, uUserType } =
       match;
     if (uUserType === undefined) {
-      // no user document was created with this product key yet, so we can safely use the product key's userType to update the distributor user doc
+      // no user document was created with this product key yet, assume Therapist
       console.log(
-        `Case 1: No user doc, update distributor doc ${dKey} (${dName}) from product key: ${pUserType}`,
+        `Case 1: No user doc, set distributor doc ${dKey} (${dName}) to Therapist`,
       );
       if (!dryRun) {
-        await dKeyDoc.ref.update({ userType: pUserType });
+        await dKeyDoc.ref.update({ userType: "Therapist" });
       }
     } else if (pUserType === "Patient" && uUserType === "Therapist") {
       // prefer type of already registered user over type defined in ProductKeys, especially for Therapist

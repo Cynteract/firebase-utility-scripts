@@ -11,23 +11,23 @@ program
 program.parse(process.argv);
 const options = program.opts();
 
-let profile;
+let project;
 if (options.dev) {
-  profile = "cynteract-test";
+  project = "cynteract-test";
 } else if (options.prod) {
-  profile = "cynteract-prod";
+  project = "cynteract-a52e4";
 } else {
   // assign dev if running with debugger
   const inspector = require("inspector");
   if (inspector.url()) {
-    profile = "cynteract-test";
+    project = "cynteract-test";
   } else {
     throw new Error("Please specify --dev or --prod");
   }
 }
 
 // dump database
-const args = ["export", "./after_migration", "-P", profile, "--adc"];
+const args = ["export", "./after_migration", "-P", project, "--adc"];
 if (options.overwrite) {
   args.push("--overwrite");
 }
