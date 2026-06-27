@@ -3,10 +3,10 @@ const prod = require("./prodAccKey.json");
 const dev = require("./testAccKey.json");
 const assert = require("assert");
 
-// key = dev
-key = prod;
-// const dryRun = true;
-const dryRun = false;
+key = dev;
+// key = prod;
+const dryRun = true;
+// const dryRun = false;
 
 admin.initializeApp({ credential: admin.credential.cert(key) });
 
@@ -14,21 +14,7 @@ const db = admin.firestore();
 let distributorUsersSnapshot = null;
 let productKeysSnapshot = null;
 
-async function main() {
-  distributorUsersSnapshot = await db
-    .collectionGroup("Users")
-    .select("userType", "UserType", "Used", "keyUsed", "UsedBy", "userId")
-    .get();
-  productKeysSnapshot = await db
-    .collection("ProductKeys")
-    .select("Key", "UserType")
-    .get();
-  userSnapshot = await db
-    .collection("User")
-    .select("ProductKey", "UserType")
-    .get();
-
-  // assert no duplicate keys
+async function assertNoDuplicateKeys() {
   const pKeysSet = new Set();
   for (const productKeyDoc of productKeysSnapshot.docs) {
     const pKey = productKeyDoc.get("Key");
@@ -44,6 +30,23 @@ async function main() {
     );
     dKeysSet.add(dKey);
   }
+}
+
+async function main() {
+  distributorUsersSnapshot = await db
+    .collectionGroup("Users")
+    .select("userType", "UserType", "Used", "keyUsed", "UsedBy", "userId")
+    .get();
+  productKeysSnapshot = await db
+    .collection("ProductKeys")
+    .select("Key", "UserType")
+    .get();
+  userSnapshot = await db
+    .collection("User")
+    .select("ProductKey", "UserType")
+    .get();
+
+  await assertNoDuplicateKeys();
 
   // get distributor key docs with missing userType field
   const missingUserTypeKeysDocs = distributorUsersSnapshot.docs.filter(
