@@ -4,6 +4,7 @@ const dev = require("./testAccKey.json");
 const assert = require("assert");
 
 admin.initializeApp({ credential: admin.credential.cert(dev) });
+const dryRun = false; // set to false to actually update the database
 
 const db = admin.firestore();
 let distributorUsersSnapshot = null;
@@ -77,14 +78,14 @@ async function main() {
       dName !== undefined,
       `Distributor user doc for product key ${dKey} does not have a name field.`,
     );
-    const pKeyDoc = productKeysSnapshot.docs.find(
+    const pDoc = productKeysSnapshot.docs.find(
       (doc) => doc.get("Key") === dKey,
     );
     assert(
-      pKeyDoc !== undefined,
+      pDoc !== undefined,
       `No matching product key doc found for distributor user doc: ${dKey}`,
     );
-    const pUserType = pKeyDoc.get("UserType");
+    const pUserType = pDoc.get("UserType");
     const uDoc = userSnapshot.docs.find(
       (doc) => doc.get("ProductKey") === dKey,
     );
@@ -94,41 +95,53 @@ async function main() {
       `User document for product key ${dKey} does not have a userType field.`,
     );
     matches.push({
+      dKeyDoc,
       dKey,
       dName,
-      pId: pKeyDoc.id,
+      pDoc,
+      pId: pDoc.id,
       pUserType,
+      uDoc,
       uUserType,
     });
   }
 
   // migrate database
   for (const match of matches) {
-    const { dKey, dName, pId, pUserType, uUserType } = match;
+    const { dKeyDoc, dKey, dName, pDoc, pId, pUserType, uDoc, uUserType } =
+      match;
     if (uUserType === undefined) {
       // no user document was created with this product key yet, so we can safely use the product key's userType to update the distributor user doc
       console.log(
-        `No user document found, updating distributor user doc ${dKey} (${dName}) with userType from product key: ${pUserType}`,
+        `Case 1: No user doc, update distributor doc ${dKey} (${dName}) from product key: ${pUserType}`,
       );
-      // await db.collectionGroup("Users").doc(dKey).update({ userType: pUserType });
+      if (!dryRun) {
+        await dKeyDoc.ref.update({ userType: pUserType });
+      }
     } else if (pUserType === "Patient" && uUserType === "Therapist") {
       // prefer type of already registered user over type defined in ProductKeys, especially for Therapist
       console.log(
-        `Updating distributor user doc ${dKey} (${dName}) with userType from user document: ${uUserType}`,
+        `Case 2: Product key says Patient, but user doc says Therapist. Update distributor doc ${dKey} (${dName}) from user document: ${uUserType}`,
       );
-      // await db.collectionGroup("Users").doc(dKey).update({ userType: "Therapist" });
+      if (!dryRun) {
+        await dKeyDoc.ref.update({ userType: "Therapist" });
+      }
     } else if (pUserType === "Therapist" && uUserType === "Patient") {
       // prefer type of already registered user over type defined in ProductKeys, even for Patient; this is different when distributor user type is defined, though
       console.warn(
-        `Updating distributor doc and product key ${dKey} (${dName}) with userType from user document: ${uUserType}`,
+        `Case 3: Product key says Therapist, but user doc says Patient. Update distributor doc ${dKey} (${dName}) from user document: ${uUserType}`,
       );
-      // await db.collectionGroup("Users").doc(dKey).update({ userType: "Patient" });
-      // await db.collection("ProductKeys").doc(pId).update({ UserType: "Patient" });
+      if (!dryRun) {
+        await dKeyDoc.ref.update({ userType: "Patient" });
+        await pDoc.ref.update({ UserType: "Patient" });
+      }
     } else if (pUserType === uUserType) {
       console.log(
-        `Updating distributor user doc ${dKey} (${dName}) with userType from user document (same as product key): ${uUserType}`,
+        `Case 4: Product key and user doc have the same userType. Update distributor doc ${dKey} (${dName}) from user document: ${uUserType}`,
       );
-      // await db.collectionGroup("Users").doc(dKey).update({ userType: uUserType });
+      if (!dryRun) {
+        await dKeyDoc.ref.update({ userType: uUserType });
+      }
     } else {
       assert(
         false,
