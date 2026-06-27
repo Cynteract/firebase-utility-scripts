@@ -5,8 +5,8 @@ const assert = require("assert");
 
 // key = dev;
 key = prod;
-const dryRun = true;
-// const dryRun = false;
+// const dryRun = true;
+const dryRun = false;
 
 admin.initializeApp({ credential: admin.credential.cert(key) });
 const auth = admin.auth();
